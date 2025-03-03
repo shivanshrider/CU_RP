@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
 
 const generateRequestId = () => {
   const date = new Date();
-  const day = String(date.getDate()).padStart(2, "0"); // DD
-  const month = String(date.getMonth() + 1).padStart(2, "0"); // MM
-  const randomNum = Math.floor(100 + Math.random() * 900); // XXX (3-digit random number)
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const randomNum = Math.floor(100 + Math.random() * 900);
   return `CU${day}${month}${randomNum}`;
 };
 
@@ -20,183 +23,108 @@ const NewRequest = () => {
     endDate: "",
     prizeMoney: "",
     status: "Pending",
-    tickets: null,
-    invitationLetter: null,
-    certificates: null,
-    otherDocuments: null,
   });
+  const [files, setFiles] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     setRequestId(generateRequestId());
   }, []);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const [uploadedFiles, setUploadedFiles] = useState({});
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleFileChange = (e) => {
     const { name, files } = e.target;
     if (files.length > 0) {
-      setUploadedFiles((prev) => ({
-        ...prev,
-        [name]: files[0].name,
-      }));
+      setFiles((prev) => ({ ...prev, [name]: files[0] }));
     }
   };
 
-  const handleSubmit = (e) => {
+  const uploadFile = async (file, fileName) => {
+    try {
+      const { data, error } = await supabase.storage.from("documents").upload(`requests/${fileName}`, file);
+      if (error) throw error;
+      return data.path;
+    } catch (error) {
+      setErrorMessage(`File upload failed: ${error.message}`);
+      return null;
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Generated Request ID:", requestId);
-    console.log("Form Submitted:", formData);
+    setLoading(true);
+    setSuccess(false);
+    setErrorMessage("");
+
+    let uploadedPaths = {};
+    for (const key in files) {
+      const filePath = await uploadFile(files[key], `${requestId}_${key}`);
+      if (filePath) uploadedPaths[key] = filePath;
+    }
+
+    try {
+      const { error } = await supabase.from("requests").insert([{ requestId, ...formData, ...uploadedPaths }]);
+      if (error) throw error;
+      setSuccess(true);
+      setFormData({ name: "", uid: "", contact: "", email: "", competitionName: "", startDate: "", endDate: "", prizeMoney: "", status: "Pending" });
+      setFiles({});
+    } catch (error) {
+      setErrorMessage(`Submission failed: ${error.message}`);
+    }
+    setLoading(false);
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100 p-4">
-      <div className="w-full max-w-3xl bg-white shadow-lg rounded-lg p-6">
-        <h2 className="text-2xl font-semibold text-red-600 text-center mb-6">New Reimbursement Request</h2>
+    <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-gray-100 to-gray-300 p-6">
+      <div className="w-full max-w-3xl bg-white shadow-2xl rounded-xl p-8">
+        <h2 className="text-3xl font-bold text-red-600 text-center mb-6">New Reimbursement Request</h2>
+        <p className="text-center text-gray-600 text-lg">Request ID: <span className="font-semibold text-black">{requestId}</span></p>
+        {success && <p className="text-green-600 text-center font-semibold mt-4">✅ Request Submitted Successfully!</p>}
+        {errorMessage && <p className="text-red-600 text-center font-semibold mt-4">❌ {errorMessage}</p>}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Hidden Request ID */}
-          <p className="text-sm text-gray-500 text-center">Request ID: <span className="font-bold">{requestId}</span></p>
-
-          {/* Student Details */}
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-medium text-gray-700">Name</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg p-2 mt-1"
-                required
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700">UID</label>
-              <input
-                type="text"
-                name="uid"
-                value={formData.uid}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg p-2 mt-1"
-                required
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700">Contact Number</label>
-              <input
-                type="text"
-                name="contact"
-                value={formData.contact}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg p-2 mt-1"
-                required
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg p-2 mt-1"
-                required
-              />
-            </div>
+            {["name", "uid", "contact", "email"].map((field) => (
+              <div key={field}>
+                <label className="block font-medium text-gray-700">{field.replace(/([A-Z])/g, " $1")}</label>
+                <input type={field === "email" ? "email" : "text"} name={field} value={formData[field]} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2 mt-1 focus:ring-2 focus:ring-red-500" required />
+              </div>
+            ))}
           </div>
 
-          {/* Competition Details */}
           <div>
             <label className="block font-medium text-gray-700">Competition Name</label>
-            <input
-              type="text"
-              name="competitionName"
-              value={formData.competitionName}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg p-2 mt-1"
-              required
-            />
+            <input type="text" name="competitionName" value={formData.competitionName} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2 mt-1 focus:ring-2 focus:ring-red-500" required />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block font-medium text-gray-700">Start Date</label>
-              <input
-                type="date"
-                name="startDate"
-                value={formData.startDate}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg p-2 mt-1"
-                required
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700">End Date</label>
-              <input
-                type="date"
-                name="endDate"
-                value={formData.endDate}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg p-2 mt-1"
-                required
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700">Prize Money (₹)</label>
-              <input
-                type="number"
-                name="prizeMoney"
-                value={formData.prizeMoney}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg p-2 mt-1"
-              />
-            </div>
+            {["startDate", "endDate", "prizeMoney"].map((field) => (
+              <div key={field}>
+                <label className="block font-medium text-gray-700">{field.replace(/([A-Z])/g, " $1")}</label>
+                <input type={field === "prizeMoney" ? "number" : "date"} name={field} value={formData[field]} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2 mt-1 focus:ring-2 focus:ring-red-500" required={field !== "prizeMoney"} />
+              </div>
+            ))}
           </div>
 
-          {/* Uploaded Documents */}
           <div>
-      <label className="block font-medium text-gray-700">Uploaded Documents</label>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-        {["tickets", "invitationLetter", "certificates", "otherDocuments"].map((doc, index) => (
-          <div key={index} className="relative">
-            <label className="text-sm text-gray-600 capitalize">
-              {doc.replace(/([A-Z])/g, " $1")}
-            </label>
-            <input
-              type="file"
-              name={doc}
-              onChange={handleFileChange}
-              className="hidden"
-              id={doc}
-            />
-            <label
-              htmlFor={doc}
-              className="cursor-pointer mt-1 block bg-red-600 text-white text-center py-2 rounded-lg transition duration-300 hover:bg-red-700"
-            >
-              Upload {doc.replace(/([A-Z])/g, " $1")}
-            </label>
-            {uploadedFiles[doc] && (
-              <p className="text-sm text-gray-700 mt-1">
-                Uploaded: <span className="font-medium">{uploadedFiles[doc]}</span>
-              </p>
-            )}
+            <label className="block font-medium text-gray-700">Upload Documents</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+              {["tickets", "invitationLetter", "certificates", "otherDocuments"].map((doc) => (
+                <div key={doc}>
+                  <label className="text-sm text-gray-600 capitalize">{doc.replace(/([A-Z])/g, " $1")}</label>
+                  <input type="file" name={doc} onChange={handleFileChange} className="hidden" id={doc} />
+                  <label htmlFor={doc} className="cursor-pointer mt-1 block bg-red-600 text-white text-center py-2 rounded-lg transition duration-300 hover:bg-red-700">Upload {doc.replace(/([A-Z])/g, " $1")}</label>
+                  {files[doc] && <p className="text-sm text-gray-700 mt-1">Uploaded: <span className="font-medium">{files[doc].name}</span></p>}
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
-    </div>
 
-          {/* Submit Button */}
           <div className="flex justify-center">
-            <button
-              type="submit"
-              className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition duration-300"
-            >
-              Submit Request
-            </button>
+            <button type="submit" className={`px-6 py-3 rounded-lg text-white font-semibold transition duration-300 ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"}`} disabled={loading}>{loading ? "Submitting..." : "Submit Request"}</button>
           </div>
         </form>
       </div>

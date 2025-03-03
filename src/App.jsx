@@ -1,5 +1,6 @@
 import { useState } from "react";
 import reactLogo from "./assets/react.svg";
+import { supabase } from "./utils/supabaseClient.js";
 import viteLogo from "/vite.svg";
 import "./App.css";
 import LoginBox from "./pages/AdminLogin";

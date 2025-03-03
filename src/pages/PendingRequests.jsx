@@ -1,22 +1,35 @@
 import { useState, useEffect } from "react";
 import { IoMdClose } from "react-icons/io";
 import { FaEdit } from "react-icons/fa";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = "https://cfapxepdgciewhomrglr.supabase.co"; 
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmYXB4ZXBkZ2NpZXdob21yZ2xyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEwMDE5MjIsImV4cCI6MjA1NjU3NzkyMn0.Pzi3yqlY1oomWF_l8M8JF2CrpiyHcIslyaQLYBmXuo8"; 
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const PendingRequest = () => {
-  const [requests, setRequests] = useState([
-    { id: 1, name: "Shivansh Tiwari", uid: "22BCS10784", contact: "7275994641", competition: "Hackathon 2024", status: "Pending" },
-    { id: 2, name: "Rahul Sharma", uid: "21CS10023", contact: "9876543210", competition: "Code Battle", status: "Pending" },
-  ]);
-
+  const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
   const [updatedStatus, setUpdatedStatus] = useState("");
 
-  // Load completed requests from localStorage
   useEffect(() => {
-    const storedCompletedRequests = JSON.parse(localStorage.getItem("completedRequests")) || [];
-    console.log("Loaded completed requests:", storedCompletedRequests);
+    fetchPendingRequests();
   }, []);
+
+  // Fetch pending requests from Supabase
+  const fetchPendingRequests = async () => {
+    const { data, error } = await supabase
+      .from("requests")
+      .select("uid, name, contact, competitionName, status")
+      .eq("status", "Pending");
+
+    if (error) {
+      console.error("Error fetching data:", error);
+    } else {
+      setRequests(data);
+    }
+  };
 
   const handleOpen = (request) => {
     setSelectedRequest(request);
@@ -29,26 +42,28 @@ const PendingRequest = () => {
     setSelectedRequest(null);
   };
 
-  const handleUpdate = () => {
+  // Update request status in Supabase
+  const handleUpdate = async () => {
     if (selectedRequest) {
-      const updatedRequests = requests.filter((req) => req.id !== selectedRequest.id);
-      
-      if (updatedStatus === "Completed") {
-        const completedRequests = JSON.parse(localStorage.getItem("completedRequests")) || [];
-        completedRequests.push({ ...selectedRequest, status: "Completed" });
-        localStorage.setItem("completedRequests", JSON.stringify(completedRequests));
-      } else {
-        updatedRequests.push({ ...selectedRequest, status: updatedStatus });
-      }
+      const { error } = await supabase
+        .from("requests")
+        .update({ status: updatedStatus })
+        .eq("id", selectedRequest.id);
 
-      setRequests(updatedRequests);
-      setIsOpen(false);
+      if (error) {
+        console.error("Error updating status:", error);
+      } else {
+        fetchPendingRequests(); // Refresh data after update
+        setIsOpen(false);
+      }
     }
   };
 
   return (
     <div className="container mx-auto p-4">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Pending Requests</h2>
+      <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+        Pending Requests
+      </h2>
 
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white shadow-lg rounded-lg border">
@@ -71,15 +86,17 @@ const PendingRequest = () => {
                 <td className="py-3 px-4">{req.uid}</td>
                 <td className="py-3 px-4">{req.contact}</td>
                 <td className="py-3 px-4">{req.competition}</td>
-                <td className={`py-3 px-4 font-medium capitalize ${
-                  req.status === "Pending"
-                    ? "text-yellow-600"
-                    : req.status === "Verified"
-                    ? "text-blue-600"
-                    : req.status === "In Process"
-                    ? "text-orange-600"
-                    : "text-green-600"
-                }`}>
+                <td
+                  className={`py-3 px-4 font-medium capitalize ${
+                    req.status === "Pending"
+                      ? "text-yellow-600"
+                      : req.status === "Verified"
+                      ? "text-blue-600"
+                      : req.status === "In Process"
+                      ? "text-orange-600"
+                      : "text-green-600"
+                  }`}
+                >
                   {req.status}
                 </td>
                 <td className="py-3 px-4">
@@ -100,18 +117,33 @@ const PendingRequest = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg w-96 shadow-xl">
             <div className="flex justify-between items-center border-b pb-2 mb-4">
-              <h3 className="text-xl font-semibold text-gray-800">Request Details</h3>
-              <button onClick={handleClose} className="text-gray-600 hover:text-red-600">
+              <h3 className="text-xl font-semibold text-gray-800">
+                Request Details
+              </h3>
+              <button
+                onClick={handleClose}
+                className="text-gray-600 hover:text-red-600"
+              >
                 <IoMdClose size={24} />
               </button>
             </div>
-            <p><strong>Name:</strong> {selectedRequest.name}</p>
-            <p><strong>UID:</strong> {selectedRequest.uid}</p>
-            <p><strong>Contact:</strong> {selectedRequest.contact}</p>
-            <p><strong>Competition:</strong> {selectedRequest.competition}</p>
+            <p>
+              <strong>Name:</strong> {selectedRequest.name}
+            </p>
+            <p>
+              <strong>UID:</strong> {selectedRequest.uid}
+            </p>
+            <p>
+              <strong>Contact:</strong> {selectedRequest.contact}
+            </p>
+            <p>
+              <strong>Competition:</strong> {selectedRequest.competition}
+            </p>
 
             <div className="mt-4">
-              <label className="block text-gray-700 font-medium mb-1">Update Status:</label>
+              <label className="block text-gray-700 font-medium mb-1">
+                Update Status:
+              </label>
               <select
                 value={updatedStatus}
                 onChange={(e) => setUpdatedStatus(e.target.value)}
