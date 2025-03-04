@@ -1,16 +1,7 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 
-const ProtectedRoute = ({ user, children }) => {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!user) {
-      navigate('/');
-    }
-  }, [user, navigate]);
-
-  return user ? children : null;
+const ProtectedRoute = ({ user }) => {
+  return user ? <Outlet /> : <Navigate to="/" replace />;
 };
 
 export default ProtectedRoute;

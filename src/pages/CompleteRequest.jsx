@@ -1,12 +1,41 @@
 import { useState, useEffect } from "react";
+import { supabase } from "../utils/supabaseClient.js";
+import { toast } from "react-toastify";
 
 const CompleteRequest = () => {
   const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedRequests = JSON.parse(localStorage.getItem("completedRequests")) || [];
-    setRequests(storedRequests);
+    fetchCompletedRequests();
   }, []);
+
+  const fetchCompletedRequests = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("requests")
+        .select("*")
+        .eq("status", "Completed")
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+      setRequests(data);
+    } catch (error) {
+      console.error("Error fetching completed requests:", error);
+      toast.error("Failed to load completed requests");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-6 flex flex-col items-center">
@@ -15,17 +44,16 @@ const CompleteRequest = () => {
           Completed Requests
         </h2>
 
-        {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse border border-gray-200 text-gray-700 text-sm md:text-base">
             <thead>
-              <tr className="bg-red-600 text-white">
+              <tr className="bg-green-600 text-white">
                 <th className="p-3 border">S.No.</th>
                 <th className="p-3 border">Name</th>
                 <th className="p-3 border">UID</th>
                 <th className="p-3 border">Contact</th>
                 <th className="p-3 border">Competition</th>
-                <th className="p-3 border">Status</th>
+                <th className="p-3 border">Completed Date</th>
               </tr>
             </thead>
             <tbody>
@@ -39,9 +67,9 @@ const CompleteRequest = () => {
                     <td className="p-3 border">{req.name}</td>
                     <td className="p-3 border">{req.uid}</td>
                     <td className="p-3 border">{req.contact}</td>
-                    <td className="p-3 border">{req.competition}</td>
-                    <td className="p-3 border text-green-600 font-semibold">
-                      {req.status}
+                    <td className="p-3 border">{req.competition_name}</td>
+                    <td className="p-3 border">
+                      {new Date(req.updated_at).toLocaleDateString()}
                     </td>
                   </tr>
                 ))

@@ -42,20 +42,19 @@ function App() {
     <Router>
       <Navbar user={user} />
       <Routes>
-        <Route path="/" element={<AdminLogin />} />
-        <Route path="/login" element={<AdminLogin />} />
-        <Route path="/student-status" element={<Student />} />
-        <Route path="/studentreimburse-status" element={<StudentStatus />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/admin-dashboard" element={<AdminDashboard />} />
+  <Route path="/" element={<AdminLogin />} />
+  <Route path="/login" element={<AdminLogin />} />
+  <Route path="/student-status" element={<Student />} />
+  <Route path="/studentreimburse-status" element={<StudentStatus />} />
+  <Route path="/signup" element={<Signup />} />
+  <Route path="/admin-dashboard" element={<AdminDashboard />} />
 
-        {/* <Route element={<ProtectedRoute user={user} />}> */}
-          
-          <Route path="/new-request" element={<NewRequest />} />
-          <Route path="/pending-requests" element={<PendingRequests />} />
-          <Route path="/completed-request" element={<CompleteRequest />} />
-        {/* </Route> */}
-      </Routes>
+  <Route element={<ProtectedRoute user={user} />}>
+    <Route path="/new-request" element={<NewRequest />} />
+    <Route path="/pending-requests" element={<PendingRequests />} />
+    <Route path="/completed-request" element={<CompleteRequest />} />
+  </Route>
+</Routes>
     </Router>
   );
 }
