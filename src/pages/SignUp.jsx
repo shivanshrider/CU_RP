@@ -1,37 +1,43 @@
 import React, { useState } from 'react';
-import { supabase } from '../utils/supabaseClient'; // Import the Supabase client
-import toast, { Toaster } from 'react-hot-toast'; // Import react-hot-toast
-import { Eye, EyeOff } from 'lucide-react'; // Import Lucide icons
-import { useNavigate } from 'react-router-dom'; // Import React Router for navigation
+import { supabase } from '../utils/supabaseClient';
+import toast, { Toaster } from 'react-hot-toast';
+import { Eye, EyeOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import ReCAPTCHA from "react-google-recaptcha";
 
 const Signup = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phone: '', // Added phone field
+    phone: '',
+    eid: '',
     password: '',
     confirmPassword: '',
-    role: '',
   });
 
-  const [showPassword, setShowPassword] = useState(false); // Toggle for password visibility
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false); // Toggle for confirm password visibility
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [recaptchaValue, setRecaptchaValue] = useState(null);
 
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
+  const handleRecaptchaChange = (value) => {
+    setRecaptchaValue(value);
+  };
+
   const handleSignUp = async (e) => {
     e.preventDefault();
 
-    const { name, email, phone, password, confirmPassword, role } = formData;
+    const { name, email, phone, eid, password, confirmPassword } = formData;
 
-    if (!role) {
-      toast.error('Please select a role.');
+    if (!recaptchaValue) {
+      toast.error('Please complete the reCAPTCHA.');
       return;
     }
 
@@ -40,10 +46,7 @@ const Signup = () => {
       return;
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
       toast.error(`Error: ${error.message}`);
@@ -52,37 +55,33 @@ const Signup = () => {
 
       if (userId) {
         const { error: dbError } = await supabase.from('users').insert([
-          { id: userId, name, role, email, phone }, // Save phone number
+          { id: userId, name, email, phone, eid },
         ]);
 
         if (dbError) {
           toast.error(`Error saving user data: ${dbError.message}`);
         } else {
           toast.success('Sign up successful! Redirecting to login page...');
-          setTimeout(() => navigate('/login'), 2000); // Redirect to login after 2 seconds
+          setTimeout(() => navigate('./'), 2000);
         }
       }
     }
   };
 
   return (
-    <div className="min-h-[88vh] flex justify-center bg-gradient-to-r from-blue-50 to-green-50">
-      <Toaster /> {/* Add Toaster component */}
-      <div className="flex justify-between max-w-[88rem]">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6 py-10">
+      <Toaster />
+      
+      <div className="grid lg:grid-cols-2 grid-cols-1 bg-white shadow-xl rounded-2xl w-full max-w-6xl overflow-hidden">
+        
         {/* Left Section - Form */}
-        <div className="w-[40%] flex items-center justify-center">
-          <form
-            onSubmit={handleSignUp}
-            className="bg-white shadow-lg rounded-xl p-6 lg:p-10 w-4/5 space-y-6"
-          >
-            <div className="flex flex-col items-center mb-4">
-              <h2 className="text-3xl font-bold text-blue-900">Sign Up</h2>
-            </div>
+        <div className="flex flex-col justify-center p-10 w-full">
+          <h2 className="text-3xl font-bold text-red-600 text-center mb-6">Sign Up</h2>
 
+          <form onSubmit={handleSignUp} className="space-y-5">
+            
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Name
-              </label>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name</label>
               <input
                 type="text"
                 id="name"
@@ -90,14 +89,12 @@ const Signup = () => {
                 onChange={handleChange}
                 placeholder="Enter your name"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                className="w-full mt-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
               />
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email
-              </label>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
               <input
                 type="email"
                 id="email"
@@ -105,14 +102,12 @@ const Signup = () => {
                 onChange={handleChange}
                 placeholder="Enter your email"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                className="w-full mt-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
               />
             </div>
 
             <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                Phone Number
-              </label>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone Number</label>
               <input
                 type="tel"
                 id="phone"
@@ -120,14 +115,26 @@ const Signup = () => {
                 onChange={handleChange}
                 placeholder="Enter your phone number"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                className="w-full mt-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
+              <label htmlFor="eid" className="block text-sm font-medium text-gray-700">Enter Your EID</label>
+              <input
+                type="text"
+                id="eid"
+                value={formData.eid}
+                onChange={handleChange}
+                placeholder="Enter your EID"
+                required
+                className="w-full mt-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+              />
+            </div>
+
+            {/* Password Fields */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -136,21 +143,16 @@ const Signup = () => {
                   onChange={handleChange}
                   placeholder="Enter your password"
                   required
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                  className="w-full mt-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
                 />
-                <div
-                  className="absolute inset-y-0 right-3 flex items-center cursor-pointer"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                >
+                <div className="absolute inset-y-0 right-3 flex items-center cursor-pointer" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff className="text-gray-500" /> : <Eye className="text-gray-500" />}
                 </div>
               </div>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm Password
-              </label>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">Confirm Password</label>
               <div className="relative">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
@@ -159,69 +161,35 @@ const Signup = () => {
                   onChange={handleChange}
                   placeholder="Confirm your password"
                   required
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                  className="w-full mt-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
                 />
-                <div
-                  className="absolute inset-y-0 right-3 flex items-center cursor-pointer"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
-                >
+                <div className="absolute inset-y-0 right-3 flex items-center cursor-pointer" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
                   {showConfirmPassword ? <EyeOff className="text-gray-500" /> : <Eye className="text-gray-500" />}
                 </div>
               </div>
             </div>
 
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                Role
-              </label>
-              <select
-                id="role"
-                value={formData.role}
-                onChange={handleChange}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-              >
-                <option value="" disabled>
-                  Select your role
-                </option>
-                <option value="Farmer">Farmer</option>
-                <option value="Driver">Driver</option>
-                <option value="Admin">Admin</option>
-              </select>
+            {/* reCAPTCHA */}
+            <div className="flex justify-center">
+              <ReCAPTCHA sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI" onChange={handleRecaptchaChange} />
             </div>
 
-            <button
-              type="submit"
-              className="w-full bg-blue-900 text-white py-2 px-4 rounded-lg hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-300"
-            >
+            <button type="submit" className="w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-500 transition">
               Sign Up
             </button>
-            <p className="text-sm text-gray-600 text-center">
-              Already have an account?{' '}
-              <a href="/login" className="text-blue-600 hover:underline">
-                Log in here
-              </a>.
-            </p>
 
+            <p className="text-sm text-gray-700 text-center">
+              Already have an account? <a href="/login" className="text-red-600 hover:underline">Log in here</a>.
+            </p>
           </form>
         </div>
 
-        {/* Right Section - Image/Text */}
-        <div className="w-1/2 flex flex-col justify-center items-center text-blue-900 p-6 lg:p-10">
-          <h1 className="bg-gradient-to-r from-blue-600 to-green-600 text-transparent bg-clip-text text-4xl font-bold mb-4">
-            Welcome to Our Platform
-          </h1>
-          <p className="text-lg text-center mb-6">
-            Join us to explore the possibilities and make a difference with your role as a Farmer, Driver, or Admin.
-            Be part of the revolution!
-          </p>
-          <DotLottieReact
-            src="https://lottie.host/2cf086ab-daac-4fa9-b586-52738cb89a9d/1hYr1QxIOR.lottie"
-            loop
-            autoplay
-            className="h-96"
-          />
+        {/* Right Section */}
+        <div className="flex flex-col justify-center items-center p-10 bg-gray-100">
+          <h1 className="text-4xl font-bold text-red-600 mb-4 text-center">Welcome to CU Reimbursement System</h1>
+          <DotLottieReact src="https://lottie.host/2cf086ab-daac-4fa9-b586-52738cb89a9d/1hYr1QxIOR.lottie" loop autoplay className="h-80" />
         </div>
+
       </div>
     </div>
   );

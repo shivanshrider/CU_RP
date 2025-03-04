@@ -8,8 +8,10 @@ const Navbar = () => {
 
   return (
     <nav className="bg-white shadow-md py-4 px-6 flex justify-between items-center">
-      {/* Logo */}
-      <div className="text-2xl font-bold text-red-600">YourLogo</div>
+  {/* Logo with Link */}
+  <a href="/" className="flex items-center">
+    <img src="src\public\daa-logo.webp" alt="CU Logo" className="h-12" />
+  </a>
 
       {/* Hamburger Button for Mobile */}
       <button
@@ -20,7 +22,7 @@ const Navbar = () => {
       </button>
 
       {/* Navigation Links */}
-      <ul
+      {/* <ul
         className={`absolute lg:static top-16 left-0 w-full bg-white lg:w-auto lg:flex items-center gap-6 text-gray-700 font-medium shadow-md lg:shadow-none transition-all duration-300 ${
           menuOpen ? "block" : "hidden lg:flex"
         }`}
@@ -56,7 +58,7 @@ const Navbar = () => {
             </li>
           </>
         )}
-      </ul>
+      </ul> */}
 
       {/* Right-Side Buttons */}
       <div className="hidden lg:flex items-center gap-4">
