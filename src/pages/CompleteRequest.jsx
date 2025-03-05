@@ -17,7 +17,7 @@ const CompleteRequest = () => {
         .from("requests")
         .select("*")
         .eq("status", "Completed")
-        .order("updated_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       setRequests(data);
@@ -67,9 +67,9 @@ const CompleteRequest = () => {
                     <td className="p-3 border">{req.name}</td>
                     <td className="p-3 border">{req.uid}</td>
                     <td className="p-3 border">{req.contact}</td>
-                    <td className="p-3 border">{req.competition_name}</td>
+                    <td className="p-3 border">{req.competitionName}</td>
                     <td className="p-3 border">
-                      {new Date(req.updated_at).toLocaleDateString()}
+                      {new Date(req.created_at).toLocaleDateString()}
                     </td>
                   </tr>
                 ))

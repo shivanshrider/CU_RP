@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../utils/supabaseClient";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const generateRequestId = () => {
   const date = new Date();
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const randomNum = Math.floor(100 + Math.random() * 900);
-  return `CU${day}${month}${randomNum}`;
+  return `CU${date.getFullYear()}${(date.getMonth() + 1)
+    .toString()
+    .padStart(2, "0")}${date.getDate().toString().padStart(2, "0")}${Math.floor(
+    1000 + Math.random() * 9000
+  )}`;
 };
 
 const NewRequest = () => {
@@ -20,111 +23,216 @@ const NewRequest = () => {
     startDate: "",
     endDate: "",
     prizeMoney: "",
-    status: "Pending",
   });
   const [files, setFiles] = useState({});
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     setRequestId(generateRequestId());
   }, []);
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleFileChange = (e) => {
-    const { name, files } = e.target;
-    if (files.length > 0) {
-      setFiles((prev) => ({ ...prev, [name]: files[0] }));
+    const { name, files: selectedFiles } = e.target;
+    if (selectedFiles.length > 0) {
+      setFiles((prev) => ({ ...prev, [name]: selectedFiles[0] }));
     }
   };
 
-  const uploadFile = async (file, fileName) => {
-    try {
-      const { data, error } = await supabase.storage.from("documents").upload(`requests/${fileName}`, file);
-      if (error) throw error;
-      return data.path;
-    } catch (error) {
-      setErrorMessage(`File upload failed: ${error.message}`);
+  const uploadFile = async (file, fieldName) => {
+    const fileName = `${requestId}_${fieldName}_${file.name}`;
+    const filePath = `requests/${requestId}/${fileName}`;
+
+    const { data, error } = await supabase.storage
+      .from("documents")
+      .upload(filePath, file, { cacheControl: "3600", upsert: false });
+
+    if (error) {
+      toast.error(`Failed to upload ${fieldName}: ${error.message}`);
       return null;
     }
+    return data?.path;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setSuccess(false);
-    setErrorMessage("");
-
-    let uploadedPaths = {};
-    for (const key in files) {
-      const filePath = await uploadFile(files[key], `${requestId}_${key}`);
-      if (filePath) uploadedPaths[key] = filePath;
-    }
+    toast.dismiss();
 
     try {
-      const { error } = await supabase.from("requests").insert([{ requestId, ...formData, ...uploadedPaths }]);
-      if (error) throw error;
-      setSuccess(true);
-      setFormData({ name: "", uid: "", contact: "", email: "", competitionName: "", startDate: "", endDate: "", prizeMoney: "", status: "Pending" });
+      // Upload files
+      const uploadedDocuments = {};
+      for (const [fieldName, file] of Object.entries(files)) {
+        const path = await uploadFile(file, fieldName);
+        if (path) uploadedDocuments[fieldName] = path;
+      }
+
+      // Prepare payload
+      const payload = {
+        requestId: requestId,
+        name: formData.name,
+        uid: formData.uid, // Ensure this is a valid UUID
+        contact: formData.contact,
+        email: formData.email,
+        competitionName: formData.competitionName,
+        startDate: formData.startDate, // Ensure this is a valid date string
+        endDate: formData.endDate, // Ensure this is a valid date string
+        prizeMoney: Number(formData.prizeMoney) || 0, // Ensure this is a number
+        status: "Pending",
+        documents: uploadedDocuments,
+        created_at: new Date().toISOString(),
+      };
+
+      console.log("Payload:", payload);
+
+      // Insert into database
+      const { error } = await supabase.from("requests").insert([payload]);
+
+      if (error) {
+        console.error("Database error:", error.message);
+        toast.error(`Database error: ${error.message}`);
+        return;
+      }
+
+      // Success
+      toast.success("Request submitted successfully! 🎉");
+
+      // Reset form
+      setFormData({
+        name: "",
+        uid: "",
+        contact: "",
+        email: "",
+        competitionName: "",
+        startDate: "",
+        endDate: "",
+        prizeMoney: "",
+      });
       setFiles({});
+      setRequestId(generateRequestId());
+
+      // Refresh the page
+      window.location.reload();
     } catch (error) {
-      setErrorMessage(`Submission failed: ${error.message}`);
+      console.error("Submission error:", error.message);
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-gray-100 to-gray-300 p-6">
-      <div className="w-full max-w-3xl bg-white shadow-2xl rounded-xl p-8">
-        <h2 className="text-3xl font-bold text-red-600 text-center mb-6">New Reimbursement Request</h2>
-        <p className="text-center text-gray-600 text-lg">Request ID: <span className="font-semibold text-black">{requestId}</span></p>
-        {success && <p className="text-green-600 text-center font-semibold mt-4">✅ Request Submitted Successfully!</p>}
-        {errorMessage && <p className="text-red-600 text-center font-semibold mt-4">❌ {errorMessage}</p>}
+    <div className="flex justify-center items-center min-h-screen bg-gray-50 p-4">
+      <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg p-6 md:p-8">
+        <h2 className="text-2xl md:text-3xl font-bold text-red-600 text-center mb-4">
+          New Reimbursement Request
+        </h2>
+        <p className="text-center text-gray-600 mb-6">
+          Request ID: <span className="font-mono font-semibold">{requestId}</span>
+        </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Personal Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {["name", "uid", "contact", "email"].map((field) => (
               <div key={field}>
-                <label className="block font-medium text-gray-700">{field.replace(/([A-Z])/g, " $1")}</label>
-                <input type={field === "email" ? "email" : "text"} name={field} value={formData[field]} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2 mt-1 focus:ring-2 focus:ring-red-500" required />
+                <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
+                  {field.replace(/([A-Z])/g, " $1")}
+                </label>
+                <input
+                  type={field === "email" ? "email" : "text"}
+                  name={field}
+                  value={formData[field]}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+                  required
+                />
               </div>
             ))}
           </div>
 
+          {/* Competition Details */}
           <div>
-            <label className="block font-medium text-gray-700">Competition Name</label>
-            <input type="text" name="competitionName" value={formData.competitionName} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2 mt-1 focus:ring-2 focus:ring-red-500" required />
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Competition Name
+            </label>
+            <input
+              type="text"
+              name="competitionName"
+              value={formData.competitionName}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+              required
+            />
           </div>
 
+          {/* Dates and Prize Money */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {["startDate", "endDate", "prizeMoney"].map((field) => (
               <div key={field}>
-                <label className="block font-medium text-gray-700">{field.replace(/([A-Z])/g, " $1")}</label>
-                <input type={field === "prizeMoney" ? "number" : "date"} name={field} value={formData[field]} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2 mt-1 focus:ring-2 focus:ring-red-500" required={field !== "prizeMoney"} />
+                <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
+                  {field.replace(/([A-Z])/g, " $1")}
+                </label>
+                <input
+                  type={field === "prizeMoney" ? "number" : "date"}
+                  name={field}
+                  value={formData[field]}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-red-500"
+                  required={field !== "prizeMoney"}
+                  min={field === "prizeMoney" ? "0" : undefined}
+                />
               </div>
             ))}
           </div>
 
+          {/* File Uploads */}
           <div>
-            <label className="block font-medium text-gray-700">Upload Documents</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Required Documents
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {["tickets", "invitationLetter", "certificates", "otherDocuments"].map((doc) => (
-                <div key={doc}>
-                  <label className="text-sm text-gray-600 capitalize">{doc.replace(/([A-Z])/g, " $1")}</label>
-                  <input type="file" name={doc} onChange={handleFileChange} className="hidden" id={doc} />
-                  <label htmlFor={doc} className="cursor-pointer mt-1 block bg-red-600 text-white text-center py-2 rounded-lg transition duration-300 hover:bg-red-700">Upload {doc.replace(/([A-Z])/g, " $1")}</label>
-                  {files[doc] && <p className="text-sm text-gray-700 mt-1">Uploaded: <span className="font-medium">{files[doc].name}</span></p>}
+                <div key={doc} className="relative">
+                  <input
+                    type="file"
+                    id={doc}
+                    name={doc}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                  />
+                  <label
+                    htmlFor={doc}
+                    className="block w-full p-3 border-2 border-dashed rounded-lg cursor-pointer hover:border-red-500 transition-colors"
+                  >
+                    <span className="text-gray-600">
+                      {files[doc] ? files[doc].name : `Upload ${doc}`}
+                    </span>
+                  </label>
                 </div>
               ))}
             </div>
           </div>
 
+          {/* Submit Button */}
           <div className="flex justify-center">
-            <button type="submit" className={`px-6 py-3 rounded-lg text-white font-semibold transition duration-300 ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"}`} disabled={loading}>{loading ? "Submitting..." : "Submit Request"}</button>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`px-6 py-3 rounded-lg font-medium text-white transition-colors ${
+                loading ? "bg-gray-400 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"
+              }`}
+            >
+              {loading ? "Submitting..." : "Submit Request"}
+            </button>
           </div>
         </form>
+        <ToastContainer />
       </div>
     </div>
   );
